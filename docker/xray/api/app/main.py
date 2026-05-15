@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import errno
 import json
 import os
 import threading
@@ -91,9 +92,20 @@ def _read_json(path: Path) -> Any:
 
 def _write_json(path: Path, data: Any) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
+    payload = json.dumps(data, indent=2, ensure_ascii=True) + "\n"
     tmp_path = path.with_suffix(path.suffix + ".tmp")
-    tmp_path.write_text(json.dumps(data, indent=2, ensure_ascii=True) + "\n", encoding="utf-8")
-    tmp_path.replace(path)
+    tmp_path.write_text(payload, encoding="utf-8")
+    try:
+        tmp_path.replace(path)
+    except OSError as exc:
+        # File-level bind mounts can make atomic replace impossible (EXDEV).
+        if exc.errno != errno.EXDEV:
+            raise
+        path.write_text(payload, encoding="utf-8")
+        try:
+            tmp_path.unlink(missing_ok=True)
+        except OSError:
+            pass
 
 
 def _load_users() -> list[dict[str, str]]:
