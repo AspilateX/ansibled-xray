@@ -1,0 +1,64 @@
+- name: Create app dir
+  file:
+    path: /opt/xray
+    state: directory
+
+- name: Load xray users from inventory
+  set_fact:
+    xray_users: "{{ lookup('ansible.builtin.file', inventory_dir ~ '/group_vars/users.json') | from_json }}"
+
+- name: Validate xray users list
+  assert:
+    that:
+      - xray_users | length > 0
+      - (xray_users | map(attribute='id') | list | unique | length) == (xray_users | length)
+      - (xray_users | map(attribute='name') | list | unique | length) == (xray_users | length)
+    fail_msg: "users.json must contain at least one user with unique name and id."
+
+- name: Validate each xray user shape
+  assert:
+    that:
+      - item.name is defined
+      - item.id is defined
+    fail_msg: "Each user in users.json must include name and id fields."
+  loop: "{{ xray_users }}"
+
+- name: Copy docker compose
+  copy:
+    src: "{{ playbook_dir }}/../../docker/xray/docker-compose.yml"
+    dest: /opt/xray/docker-compose.yml
+
+- name: Copy API Dockerfile
+  copy:
+    src: "{{ playbook_dir }}/../../docker/xray/Dockerfile.api"
+    dest: /opt/xray/Dockerfile.api
+
+- name: Copy API app files
+  copy:
+    src: "{{ playbook_dir }}/../../docker/xray/api/"
+    dest: /opt/xray/api/
+
+- name: Render config
+  template:
+    src: "{{ playbook_dir }}/../../docker/xray/config.json.j2"
+    dest: /opt/xray/config.json
+
+- name: Render users file for runtime API
+  template:
+    src: "{{ playbook_dir }}/../../ansible/templates/users.json.j2"
+    dest: /opt/xray/users.json
+
+- name: Render API settings file
+  template:
+    src: "{{ playbook_dir }}/../../ansible/templates/api_settings.json.j2"
+    dest: /opt/xray/api_settings.json
+
+- name: Render docker env file
+  template:
+    src: "{{ playbook_dir }}/../../ansible/templates/docker_env.j2"
+    dest: /opt/xray/.env
+
+- name: Start xray
+  shell: docker compose up -d
+  args:
+    chdir: /opt/xray

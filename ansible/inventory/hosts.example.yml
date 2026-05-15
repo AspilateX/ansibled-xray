@@ -1,0 +1,6 @@
+all:
+  hosts:
+    vpn-prod:
+      ansible_host: "YOUR_VPS_IP"
+      ansible_user: "root"
+      ansible_become_password: "YOUR_SUDO_PASSWORD_IF_NEEDED"

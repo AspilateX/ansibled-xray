@@ -1,0 +1,35 @@
+services:
+  xray:
+    image: teddysun/xray
+    container_name: xray
+    restart: unless-stopped
+
+    network_mode: host
+
+    volumes:
+      - ./config.json:/etc/xray/config.json
+
+  xray-api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    container_name: xray-api
+    restart: unless-stopped
+
+    network_mode: host
+    depends_on:
+      - xray
+
+    environment:
+      - XRAY_USERS_FILE=/data/users.json
+      - XRAY_SETTINGS_FILE=/data/api_settings.json
+      - XRAY_CONFIG_FILE=/data/config.json
+      - XRAY_CONTAINER_NAME=xray
+      - API_PORT=${XRAY_API_PORT:-8080}
+      - XRAY_API_TOKEN=${XRAY_API_TOKEN}
+
+    volumes:
+      - ./users.json:/data/users.json
+      - ./api_settings.json:/data/api_settings.json:ro
+      - ./config.json:/data/config.json
+      - /var/run/docker.sock:/var/run/docker.sock
