@@ -3,6 +3,12 @@
     path: /opt/xray
     state: directory
 
+- name: Ensure users.json exists in inventory
+  copy:
+    src: "{{ inventory_dir }}/group_vars/users.example.json"
+    dest: "{{ inventory_dir }}/group_vars/users.json"
+    force: false
+
 - name: Load xray users from inventory
   set_fact:
     xray_users: "{{ lookup('ansible.builtin.file', inventory_dir ~ '/group_vars/users.json') | from_json }}"

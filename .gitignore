@@ -1,5 +1,4 @@
 # Local secrets and inventory
-ansible/inventory/hosts.yml
 ansible/inventory/group_vars/all.yml
 ansible/inventory/group_vars/users.json
 secrets/vault.yml

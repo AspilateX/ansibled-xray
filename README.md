@@ -11,15 +11,13 @@ sudo apt install -y ansible
 Copy example files:
 
 ```bash
-cp ansible/inventory/hosts.example.yml ansible/inventory/hosts.yml
 cp ansible/inventory/group_vars/all.example.yml ansible/inventory/group_vars/all.yml
-cp ansible/inventory/group_vars/users.example.json ansible/inventory/group_vars/users.json
 cp secrets/vault.example.yml secrets/vault.yml
 ```
 
 Then edit:
 
-- `ansible/inventory/hosts.yml` -> set VPS IP/user/password
+- `ansible/inventory/hosts.yml` -> committed in repo, default is local execution on this VPS
 - `ansible/inventory/group_vars/all.yml` -> set:
   - `xray_domain`
   - `xray_api_port`
@@ -47,6 +45,7 @@ Generate values:
 Source-of-truth for initial deploy:
 
 - `ansible/inventory/group_vars/users.json`
+- If this file is missing, Ansible auto-creates it from `ansible/inventory/group_vars/users.example.json` on deploy
 
 Helper script:
 
@@ -65,7 +64,7 @@ cd ansible
 ansible-playbook playbooks/deploy_xray.yml
 ```
 
-if vault is encrypt - with vault password
+If `secrets/vault.yml` is encrypted:
 
 ```bash
 cd ansible
