@@ -4,9 +4,5 @@ xray_domain: "vpn.example.com" # Replace with your actual domain or IP address t
 
 # === Xray User API Configuration ===
 xray_api_port: 8080 # The port that the xray API will listen on
-xray_api_token: "replace-with-random-long-token" # Replace with a secure random token for API authentication
-
-# === VLESS Client Configuration ===
-reality_private_key: "replace-with-private-key" # Replace with the private key for the VLESS client
-reality_public_key: "replace-with-public-key" # Replace with the public key for the VLESS client
-short_id: "replace-with-short-id" # Replace with a unique short ID for the VLESS client, typically a random string of 16 characters
+# Users are managed in ansible/inventory/group_vars/users.json
+# Secrets (xray_api_token, reality keys, short_id) are loaded from secrets/vault.yml

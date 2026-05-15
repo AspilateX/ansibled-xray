@@ -5,9 +5,10 @@
 Copy example files:
 
 ```bash
-cp ansible/inventory/hosts.example.yml -> ansible/inventory/hosts.yml
-cp ansible/inventory/group_vars/all.example.yml -> ansible/inventory/group_vars/all.yml
-cp ansible/inventory/group_vars/users.example.json -> ansible/inventory/group_vars/users.json
+cp ansible/inventory/hosts.example.yml ansible/inventory/hosts.yml
+cp ansible/inventory/group_vars/all.example.yml ansible/inventory/group_vars/all.yml
+cp ansible/inventory/group_vars/users.example.json ansible/inventory/group_vars/users.json
+cp secrets/vault.example.yml secrets/vault.yml
 ```
 
 Then edit:
@@ -15,11 +16,18 @@ Then edit:
 - `ansible/inventory/hosts.yml` -> set VPS IP/user/password
 - `ansible/inventory/group_vars/all.yml` -> set:
   - `xray_domain`
+  - `xray_api_port`
+- `secrets/vault.yml` -> set:
   - `reality_private_key`
   - `reality_public_key`
   - `short_id`
-  - `xray_api_port`
   - `xray_api_token` (required for API auth)
+
+Optional: encrypt secrets file with Ansible Vault:
+
+```bash
+ansible-vault encrypt secrets/vault.yml
+```
 
 Generate values:
 
