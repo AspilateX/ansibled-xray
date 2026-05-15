@@ -1,6 +1,12 @@
 # Xray VLESS deploy (Ansible + Docker)
 
-## 1) Prepare local config files
+## 1) Install Ansible
+```bash
+sudo apt update
+sudo apt install -y ansible
+```
+
+## 2) Prepare local config files
 
 Copy example files:
 
@@ -36,7 +42,7 @@ Generate values:
   - `docker run --rm teddysun/xray xray x25519`
   - or local xray: `xray x25519`
 
-## 2) Manage users locally
+## 3) Manage users locally
 
 Source-of-truth for initial deploy:
 
@@ -52,11 +58,18 @@ python scripts/vless_users.py remove alice-phone
 python scripts/vless_users.py url alice
 ```
 
-## 3) Deploy
+## 4) Deploy
 
 ```bash
 cd ansible
 ansible-playbook playbooks/deploy_xray.yml
+```
+
+if vault is encrypt - with vault password
+
+```bash
+cd ansible
+ansible-playbook playbooks/deploy_xray.yml --ask-vault-pass
 ```
 
 This deploy starts two containers:
@@ -64,7 +77,7 @@ This deploy starts two containers:
 - `xray` (VLESS server)
 - `xray-api` (REST API for user management)
 
-## 4) API
+## 5) API
 
 API summary:
 
