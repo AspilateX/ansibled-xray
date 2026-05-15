@@ -21,6 +21,7 @@ Then edit:
 - `ansible/inventory/group_vars/all.yml` -> set:
   - `xray_domain`
   - `xray_api_port`
+  - `xray_manage_nginx` (`true` by default; set `false` to skip nginx automation)
 - `secrets/vault.yml` -> set:
   - `reality_private_key`
   - `reality_public_key`
@@ -76,6 +77,18 @@ This deploy starts two containers:
 - `xray` (VLESS server)
 - `xray-api` (REST API for user management)
 
+During deploy Ansible also configures nginx:
+
+- If nginx is missing, it gets installed automatically
+- A reverse-proxy site is created for `xray_domain` on port `80`
+- API becomes available by domain without API port in URL:
+  - `http://xray_domain/docs`
+  - `http://xray_domain/scalar`
+  - `http://xray_domain/openapi.json`
+- To disable this behavior, set `xray_manage_nginx: false` in `all.yml`
+
+Note: this setup does not bind nginx to `443`, because `443` is used by Xray.
+
 ## 5) API
 
 API summary:
@@ -93,8 +106,8 @@ API summary:
 
 After deploy:
 
-- Swagger docs: `http://SERVER_IP:8080/docs`
-- Scalar docs: `http://SERVER_IP:8080/scalar`
-- OpenAPI: `http://SERVER_IP:8080/openapi.json`
-
-Replace `8080` with `xray_api_port` from `all.yml`.
+- By domain through nginx:
+  - Swagger docs: `http://xray_domain/docs`
+  - Scalar docs: `http://xray_domain/scalar`
+  - OpenAPI: `http://xray_domain/openapi.json`
+- Direct API port (debug/troubleshooting): `http://SERVER_IP:xray_api_port/`

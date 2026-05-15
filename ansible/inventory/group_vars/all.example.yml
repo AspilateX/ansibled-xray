@@ -4,5 +4,6 @@ xray_domain: "vpn.example.com" # Replace with your actual domain or IP address t
 
 # === Xray User API Configuration ===
 xray_api_port: 8080 # The port that the xray API will listen on
+xray_manage_nginx: true # Set to false to skip nginx install/config automation
 # Users are managed in ansible/inventory/group_vars/users.json
 # Secrets (xray_api_token, reality keys, short_id) are loaded from secrets/vault.yml

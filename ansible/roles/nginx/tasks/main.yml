@@ -1,0 +1,42 @@
+- name: Gather installed package facts
+  package_facts:
+    manager: auto
+
+- name: Install nginx if missing
+  apt:
+    name: nginx
+    state: present
+    update_cache: yes
+  when: "'nginx' not in ansible_facts.packages"
+
+- name: Ensure nginx is enabled and running
+  service:
+    name: nginx
+    state: started
+    enabled: true
+
+- name: Deploy nginx reverse-proxy config for Xray API
+  template:
+    src: nginx_xray_api.conf.j2
+    dest: /etc/nginx/sites-available/xray-api
+    owner: root
+    group: root
+    mode: "0644"
+  register: nginx_xray_api_conf
+
+- name: Enable nginx reverse-proxy site
+  file:
+    src: /etc/nginx/sites-available/xray-api
+    dest: /etc/nginx/sites-enabled/xray-api
+    state: link
+  register: nginx_xray_api_link
+
+- name: Validate nginx configuration
+  command: nginx -t
+  when: nginx_xray_api_conf.changed or nginx_xray_api_link.changed
+
+- name: Reload nginx if config changed
+  service:
+    name: nginx
+    state: reloaded
+  when: nginx_xray_api_conf.changed or nginx_xray_api_link.changed
