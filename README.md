@@ -5,9 +5,9 @@
 Copy example files:
 
 ```bash
-cp ansible/inventory/hosts.example.yml ansible/inventory/hosts.yml
-cp ansible/inventory/group_vars/all.example.yml ansible/inventory/group_vars/all.yml
-cp ansible/inventory/group_vars/users.example.json ansible/inventory/group_vars/users.json
+cp ansible/inventory/hosts.example.yml -> ansible/inventory/hosts.yml
+cp ansible/inventory/group_vars/all.example.yml -> ansible/inventory/group_vars/all.yml
+cp ansible/inventory/group_vars/users.example.json -> ansible/inventory/group_vars/users.json
 ```
 
 Then edit:
@@ -28,7 +28,7 @@ Generate values:
   - `docker run --rm teddysun/xray xray x25519`
   - or local xray: `xray x25519`
 
-## 2) Manage users locally (inventory source)
+## 2) Manage users locally
 
 Source-of-truth for initial deploy:
 
@@ -56,9 +56,9 @@ This deploy starts two containers:
 - `xray` (VLESS server)
 - `xray-api` (REST API for user management)
 
-## 4) API + docs (Scalar-like)
+## 4) API
 
-Quick API summary:
+API summary:
 
 - Base URL: `http://SERVER_IP:xray_api_port/`
 - Root `/` redirects to `/scalar`
@@ -78,73 +78,3 @@ After deploy:
 - OpenAPI: `http://SERVER_IP:8080/openapi.json`
 
 Replace `8080` with `xray_api_port` from `all.yml`.
-
-### API examples
-
-List users:
-
-```bash
-curl http://SERVER_IP:8080/users \
-  -H 'X-API-Key: YOUR_TOKEN'
-```
-
-Create user (UUID auto-generated if `id` omitted):
-
-```bash
-curl -X POST http://SERVER_IP:8080/users \
-  -H 'X-API-Key: YOUR_TOKEN' \
-  -H 'Content-Type: application/json' \
-  -d '{"name":"alice"}'
-```
-
-Update user:
-
-```bash
-curl -X PATCH http://SERVER_IP:8080/users/alice \
-  -H 'X-API-Key: YOUR_TOKEN' \
-  -H 'Content-Type: application/json' \
-  -d '{"new_name":"alice-phone"}'
-```
-
-Delete user:
-
-```bash
-curl -X DELETE http://SERVER_IP:8080/users/alice-phone \
-  -H 'X-API-Key: YOUR_TOKEN'
-```
-
-Get VLESS URL:
-
-```bash
-curl http://SERVER_IP:8080/users/default/url \
-  -H 'X-API-Key: YOUR_TOKEN'
-```
-
-Every create/update/delete call updates `/opt/xray/config.json` and restarts container `xray` automatically.
-
-## 5) Safe GitHub publishing
-
-Sensitive files are intentionally ignored by `.gitignore`:
-
-- `ansible/inventory/hosts.yml`
-- `ansible/inventory/group_vars/all.yml`
-- `ansible/inventory/group_vars/users.json`
-- `secrets/vault.yml`
-
-Publish flow:
-
-```bash
-git init
-git add .
-git status
-git commit -m "Initial public-safe commit"
-git remote add origin git@github.com:YOUR_USER/YOUR_REPO.git
-git push -u origin main
-```
-
-Before push, verify no secrets staged:
-
-```bash
-git status
-git diff --cached
-```
