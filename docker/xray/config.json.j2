@@ -1,18 +1,31 @@
+{% set ns = namespace(has_vless=false, has_vmess=false) %}
+{% for user in xray_users %}
+{% if user.protocol is not defined or user.protocol == "vless" %}
+{% set ns.has_vless = true %}
+{% endif %}
+{% if user.protocol is defined and user.protocol == "vmess" %}
+{% set ns.has_vmess = true %}
+{% endif %}
+{% endfor %}
 {
   "log": {
     "loglevel": "warning"
   },
   "inbounds": [
+{% if ns.has_vless %}
     {
       "port": {{ xray_port }},
       "protocol": "vless",
       "settings": {
         "clients": [
+{% set sep = joiner(",\n") %}
 {% for user in xray_users %}
-          {
+{% if user.protocol is not defined or user.protocol == "vless" %}
+{{ sep() }}          {
             "id": "{{ user.id }}",
             "flow": "{{ user.flow | default('xtls-rprx-vision') }}"
-          }{% if not loop.last %},{% endif %}
+          }
+{% endif %}
 {% endfor %}
         ],
         "decryption": "none"
@@ -33,7 +46,31 @@
           ]
         }
       }
+    }{% if ns.has_vmess %},{% endif %}
+{% endif %}
+{% if ns.has_vmess %}
+    {
+      "port": {{ xray_vmess_port | default(10086) }},
+      "protocol": "vmess",
+      "settings": {
+        "clients": [
+{% set sep = joiner(",\n") %}
+{% for user in xray_users %}
+{% if user.protocol is defined and user.protocol == "vmess" %}
+{{ sep() }}          {
+            "id": "{{ user.id }}",
+            "alterId": 0
+          }
+{% endif %}
+{% endfor %}
+        ]
+      },
+      "streamSettings": {
+        "network": "tcp",
+        "security": "none"
+      }
     }
+{% endif %}
   ],
   "outbounds": [
     {

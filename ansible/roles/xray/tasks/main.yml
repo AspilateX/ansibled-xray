@@ -26,7 +26,9 @@
     that:
       - item.name is defined
       - item.id is defined
-    fail_msg: "Each user in users.json must include name and id fields."
+      - item.protocol is not defined or item.protocol in ['vless', 'vmess']
+      - (item.protocol is not defined) or (item.protocol != 'vless') or (item.flow is defined)
+    fail_msg: "Each user in users.json must include name/id, optional protocol (vless|vmess), and flow for vless."
   loop: "{{ xray_users }}"
 
 - name: Copy docker compose

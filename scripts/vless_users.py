@@ -326,7 +326,7 @@ def cmd_url(args: argparse.Namespace) -> int:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Manage Xray users")
+    parser = argparse.ArgumentParser(description="Manage VLESS users")
     parser.add_argument(
         "--users-file",
         type=Path,
@@ -339,12 +339,6 @@ def build_parser() -> argparse.ArgumentParser:
         default=settings_file_path(),
         help="Path to all.yml",
     )
-    parser.add_argument(
-        "--vault-file",
-        type=Path,
-        default=vault_file_path(),
-        help="Path to vault.yml (for URL generation)",
-    )
 
     subparsers = parser.add_subparsers(dest="command", required=True)
 
@@ -354,12 +348,6 @@ def build_parser() -> argparse.ArgumentParser:
     p_add = subparsers.add_parser("add", help="Create user")
     p_add.add_argument("name", help="User name")
     p_add.add_argument("--id", dest="user_id", help="UUID (auto-generated if omitted)")
-    p_add.add_argument(
-        "--protocol",
-        default=DEFAULT_PROTOCOL,
-        choices=sorted(SUPPORTED_PROTOCOLS),
-        help="User protocol",
-    )
     p_add.add_argument("--flow", default=DEFAULT_FLOW, help="VLESS flow")
     p_add.set_defaults(func=cmd_add)
 
@@ -371,15 +359,10 @@ def build_parser() -> argparse.ArgumentParser:
     p_update.add_argument("name", help="Current user name")
     p_update.add_argument("--new-name", help="New user name")
     p_update.add_argument("--id", dest="user_id", help="New UUID")
-    p_update.add_argument(
-        "--protocol",
-        choices=sorted(SUPPORTED_PROTOCOLS),
-        help="New protocol",
-    )
     p_update.add_argument("--flow", help="New flow")
     p_update.set_defaults(func=cmd_update)
 
-    p_url = subparsers.add_parser("url", help="Generate protocol URL")
+    p_url = subparsers.add_parser("url", help="Generate VLESS URL")
     p_url.add_argument("name", help="User name")
     p_url.add_argument("--fp", default=DEFAULT_FP, help="Client fingerprint")
     p_url.set_defaults(func=cmd_url)

@@ -1,4 +1,4 @@
-# Xray VLESS deploy (Ansible + Docker)
+# Xray deploy (Ansible + Docker)
 
 ## 1) Install Ansible
 ```bash
@@ -21,6 +21,7 @@ Then edit:
 - `ansible/inventory/group_vars/all.yml` -> set:
   - `xray_domain`
   - `xray_api_port`
+  - `xray_vmess_port` (port for VMess users)
   - `xray_manage_nginx` (`true` by default; set `false` to skip nginx automation)
 - `secrets/vault.yml` -> set:
   - `reality_private_key`
@@ -51,11 +52,14 @@ Source-of-truth for initial deploy:
 Helper script:
 
 ```bash
-python scripts/vless_users.py list
-python scripts/vless_users.py add alice
-python scripts/vless_users.py update alice --new-name alice-phone
-python scripts/vless_users.py remove alice-phone
-python scripts/vless_users.py url alice
+python scripts/xray_users.py list
+python scripts/xray_users.py add alice
+python scripts/xray_users.py add bob --protocol vmess
+python scripts/xray_users.py update alice --new-name alice-phone
+python scripts/xray_users.py update bob --protocol vless --flow xtls-rprx-vision
+python scripts/xray_users.py remove alice-phone
+python scripts/xray_users.py url alice
+python scripts/xray_users.py url bob
 ```
 
 ## 4) Deploy
@@ -74,7 +78,7 @@ ansible-playbook playbooks/deploy_xray.yml --ask-vault-pass
 
 This deploy starts two containers:
 
-- `xray` (VLESS server)
+- `xray` (Xray server for VLESS/VMess users)
 - `xray-api` (REST API for user management)
 
 During deploy Ansible also configures nginx:
@@ -103,6 +107,11 @@ API summary:
   - `DELETE /users/{name}`
   - `GET /users/{name}/url`
 - Any create/update/delete automatically rewrites Xray config and restarts `xray`
+- User object fields:
+  - `name`: string
+  - `id`: UUID
+  - `protocol`: `vless` or `vmess` (optional, default `vless`)
+  - `flow`: only for `vless` (default `xtls-rprx-vision`)
 
 After deploy:
 

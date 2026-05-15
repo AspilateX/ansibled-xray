@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import json
 import os
 import threading
@@ -16,6 +17,9 @@ from scalar_fastapi import get_scalar_api_reference
 
 DEFAULT_FLOW = "xtls-rprx-vision"
 DEFAULT_FP = "chrome"
+DEFAULT_PROTOCOL = "vless"
+SUPPORTED_PROTOCOLS = {"vless", "vmess"}
+DEFAULT_VMESS_PORT = 10086
 
 USERS_FILE = Path(os.getenv("XRAY_USERS_FILE", "/data/users.json"))
 SETTINGS_FILE = Path(os.getenv("XRAY_SETTINGS_FILE", "/data/api_settings.json"))
@@ -24,9 +28,9 @@ XRAY_CONTAINER_NAME = os.getenv("XRAY_CONTAINER_NAME", "xray")
 XRAY_API_TOKEN = os.getenv("XRAY_API_TOKEN", "")
 
 app = FastAPI(
-    title="Xray VLESS User API",
+    title="Xray User API",
     version="1.0.0",
-    description="Manage VLESS users and auto-apply Xray config",
+    description="Manage Xray users and auto-apply Xray config",
 )
 state_lock = threading.Lock()
 
@@ -39,19 +43,22 @@ def _authorize(x_api_key: str | None = Header(default=None, alias="X-API-Key")) 
 class UserCreate(BaseModel):
     name: str = Field(min_length=1, max_length=128)
     id: str | None = None
+    protocol: str = Field(default=DEFAULT_PROTOCOL, min_length=1, max_length=16)
     flow: str = Field(default=DEFAULT_FLOW, min_length=1, max_length=128)
 
 
 class UserUpdate(BaseModel):
     new_name: str | None = Field(default=None, min_length=1, max_length=128)
     id: str | None = None
+    protocol: str | None = Field(default=None, min_length=1, max_length=16)
     flow: str | None = Field(default=None, min_length=1, max_length=128)
 
 
 class UserOut(BaseModel):
     name: str
     id: str
-    flow: str
+    protocol: str
+    flow: str | None = None
 
 
 class UrlOut(BaseModel):
@@ -61,6 +68,16 @@ class UrlOut(BaseModel):
 
 def _validate_uuid(value: str) -> None:
     uuid.UUID(value)
+
+
+def _validate_protocol(value: str) -> str:
+    protocol = value.strip().lower()
+    if protocol not in SUPPORTED_PROTOCOLS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported protocol '{value}'. Supported: {', '.join(sorted(SUPPORTED_PROTOCOLS))}",
+        )
+    return protocol
 
 
 def _read_json(path: Path) -> Any:
@@ -90,14 +107,20 @@ def _load_users() -> list[dict[str, str]]:
             raise HTTPException(status_code=500, detail="Each user must be an object")
         name = str(item.get("name", "")).strip()
         user_id = str(item.get("id", "")).strip()
-        flow = str(item.get("flow", DEFAULT_FLOW)).strip() or DEFAULT_FLOW
+        protocol = _validate_protocol(str(item.get("protocol", DEFAULT_PROTOCOL)))
+        flow = str(item.get("flow", DEFAULT_FLOW)).strip() if protocol == "vless" else ""
+        if protocol == "vless":
+            flow = flow or DEFAULT_FLOW
         if not name or not user_id:
             raise HTTPException(status_code=500, detail="Each user needs name and id")
         try:
             _validate_uuid(user_id)
         except ValueError as exc:
             raise HTTPException(status_code=500, detail=f"Invalid UUID in users.json: {user_id}") from exc
-        users.append({"name": name, "id": user_id, "flow": flow})
+        user: dict[str, str] = {"name": name, "id": user_id, "protocol": protocol}
+        if protocol == "vless":
+            user["flow"] = flow
+        users.append(user)
 
     _assert_uniques(users)
     return users
@@ -121,25 +144,33 @@ def _load_settings() -> dict[str, str]:
     if not isinstance(raw, dict):
         raise HTTPException(status_code=500, detail="api_settings.json must be an object")
 
-    required = [
-        "xray_port",
-        "xray_domain",
-        "reality_private_key",
-        "reality_public_key",
-        "short_id",
-    ]
+    required = ["xray_domain"]
     missing = [key for key in required if not raw.get(key)]
     if missing:
         raise HTTPException(status_code=500, detail=f"Missing settings: {', '.join(missing)}")
 
-    return {k: str(v) for k, v in raw.items()}
+    settings = {k: str(v) for k, v in raw.items()}
+    settings.setdefault("xray_vmess_port", str(DEFAULT_VMESS_PORT))
+    return settings
 
 
 def _build_xray_config(settings: dict[str, str], users: list[dict[str, str]]) -> dict[str, Any]:
-    clients = [{"id": u["id"], "flow": u.get("flow", DEFAULT_FLOW)} for u in users]
-    return {
-        "log": {"loglevel": "warning"},
-        "inbounds": [
+    inbounds: list[dict[str, Any]] = []
+    vless_users = [u for u in users if u["protocol"] == "vless"]
+    vmess_users = [u for u in users if u["protocol"] == "vmess"]
+
+    if vless_users:
+        required = [
+            "xray_port",
+            "reality_private_key",
+            "short_id",
+        ]
+        missing = [key for key in required if not settings.get(key)]
+        if missing:
+            raise HTTPException(status_code=500, detail=f"Missing VLESS settings: {', '.join(missing)}")
+
+        clients = [{"id": u["id"], "flow": u.get("flow", DEFAULT_FLOW)} for u in vless_users]
+        inbounds.append(
             {
                 "port": int(settings["xray_port"]),
                 "protocol": "vless",
@@ -160,7 +191,30 @@ def _build_xray_config(settings: dict[str, str], users: list[dict[str, str]]) ->
                     },
                 },
             }
-        ],
+        )
+
+    if vmess_users:
+        clients = [{"id": u["id"], "alterId": 0} for u in vmess_users]
+        inbounds.append(
+            {
+                "port": int(settings["xray_vmess_port"]),
+                "protocol": "vmess",
+                "settings": {
+                    "clients": clients,
+                },
+                "streamSettings": {
+                    "network": "tcp",
+                    "security": "none",
+                },
+            }
+        )
+
+    if not inbounds:
+        raise HTTPException(status_code=500, detail="No valid users/protocols to build inbounds")
+
+    return {
+        "log": {"loglevel": "warning"},
+        "inbounds": inbounds,
         "outbounds": [{"protocol": "freedom"}],
     }
 
@@ -187,6 +241,29 @@ def _find_user(users: list[dict[str, str]], name: str) -> dict[str, str] | None:
 
 def _build_url(user: dict[str, str], fp: str = DEFAULT_FP) -> str:
     settings = _load_settings()
+    protocol = user["protocol"]
+    if protocol == "vmess":
+        vmess_payload = {
+            "v": "2",
+            "ps": user["name"],
+            "add": settings["xray_domain"],
+            "port": settings["xray_vmess_port"],
+            "id": user["id"],
+            "aid": "0",
+            "scy": "auto",
+            "net": "tcp",
+            "type": "none",
+            "host": "",
+            "path": "",
+            "tls": "",
+        }
+        encoded = base64.b64encode(json.dumps(vmess_payload, ensure_ascii=True).encode("utf-8")).decode("ascii")
+        return f"vmess://{encoded}"
+
+    missing = [key for key in ["xray_port", "reality_public_key", "short_id"] if not settings.get(key)]
+    if missing:
+        raise HTTPException(status_code=500, detail=f"Missing VLESS settings: {', '.join(missing)}")
+
     params = [
         ("encryption", "none"),
         ("flow", user.get("flow", DEFAULT_FLOW)),
@@ -237,7 +314,10 @@ def create_user(payload: UserCreate, _: None = Depends(_authorize)) -> dict[str,
         if any(u["id"] == user_id for u in users):
             raise HTTPException(status_code=409, detail="UUID already exists")
 
-        created = {"name": payload.name, "id": user_id, "flow": payload.flow}
+        protocol = _validate_protocol(payload.protocol)
+        created: dict[str, str] = {"name": payload.name, "id": user_id, "protocol": protocol}
+        if protocol == "vless":
+            created["flow"] = payload.flow
         users.append(created)
         _assert_uniques(users)
         _save_users(users)
@@ -268,7 +348,15 @@ def update_user(name: str, payload: UserUpdate, _: None = Depends(_authorize)) -
             user["name"] = payload.new_name
         if payload.id:
             user["id"] = payload.id
+        if payload.protocol:
+            user["protocol"] = _validate_protocol(payload.protocol)
+            if user["protocol"] == "vmess":
+                user.pop("flow", None)
+            else:
+                user["flow"] = user.get("flow", DEFAULT_FLOW)
         if payload.flow:
+            if user.get("protocol", DEFAULT_PROTOCOL) != "vless":
+                raise HTTPException(status_code=400, detail="flow is only supported for protocol=vless")
             user["flow"] = payload.flow
 
         _assert_uniques(users)
@@ -308,5 +396,5 @@ def get_user_url(name: str, fp: str = DEFAULT_FP, _: None = Depends(_authorize))
 async def scalar_docs():
     return get_scalar_api_reference(
         openapi_url=app.openapi_url,
-        title="Xray VLESS User API",
+        title="Xray User API",
     )
